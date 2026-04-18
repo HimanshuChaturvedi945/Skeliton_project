@@ -5,7 +5,7 @@ import pandas as pd
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.preprocessing import StandardScaler, LabelEncoder
 import src.exception as exception
 from src.logger import logging
 import os
@@ -14,6 +14,7 @@ from src.utils import save_object
 @dataclass
 class DataTransformationConfig:
     preprocessor_obj_file_path = os.path.join('artifacts', 'preprocessor.pkl')
+    label_encoder_obj_file_path = os.path.join('artifacts', 'label_encoder.pkl')
 
 class DataTransformation:
     def __init__(self):
@@ -62,7 +63,6 @@ class DataTransformation:
                 preprocessing_obj = self.get_data_transformer_object()
 
                 target_column_name = 'diagnosis'
-                numerical_columns = ['mean_radius', 'mean_texture', 'mean_perimeter', 'mean_area', 'mean_smoothness']
 
                 input_feature_train_df = train_df.drop(columns=[target_column_name])
                 target_feature_train_df = train_df[target_column_name]
@@ -75,8 +75,13 @@ class DataTransformation:
                 input_feature_train_arr = preprocessing_obj.fit_transform(input_feature_train_df)
                 input_feature_test_arr = preprocessing_obj.transform(input_feature_test_df)
 
-                train_arr = np.c_[input_feature_train_arr, np.array(target_feature_train_df)]
-                test_arr = np.c_[input_feature_test_arr, np.array(target_feature_test_df)]
+                # Encode target labels
+                label_encoder = LabelEncoder()
+                target_feature_train_arr = label_encoder.fit_transform(target_feature_train_df)
+                target_feature_test_arr = label_encoder.transform(target_feature_test_df)
+
+                train_arr = np.c_[input_feature_train_arr, target_feature_train_arr]
+                test_arr = np.c_[input_feature_test_arr, target_feature_test_arr]
 
                 logging.info("Saved preprocessing object.")
 
@@ -85,10 +90,16 @@ class DataTransformation:
                     obj=preprocessing_obj
                 )
 
+                save_object(
+                    file_path=self.data_transformation_config.label_encoder_obj_file_path,
+                    obj=label_encoder
+                )
+
                 return (
                     train_arr,
                     test_arr,
-                    self.data_transformation_config.preprocessor_obj_file_path
+                    self.data_transformation_config.preprocessor_obj_file_path,
+                    self.data_transformation_config.label_encoder_obj_file_path
                 )
             except Exception as e:
                 raise exception.CustomException(e, sys)
