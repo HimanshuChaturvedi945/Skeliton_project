@@ -1,5 +1,11 @@
 import os
 import sys
+
+PACKAGE_PARENT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+REPO_ROOT = os.path.dirname(PACKAGE_PARENT)
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
+
 import logging
 import src.logger
 import pandas as pd
@@ -7,8 +13,7 @@ import src.exception as exception
 from src.utils import load_data
 from sklearn.model_selection import train_test_split
 from dataclasses import dataclass
-
-
+from src.Components.data_transformation import DataTransformation
 @dataclass
 class DataIngestionConfig:
     train_data_path: str = os.path.join('artifacts', 'train.csv')
@@ -47,4 +52,7 @@ class DataIngestion:
 
 if __name__ == "__main__":
     obj = DataIngestion()
-    obj.initiate_data_ingestion()
+    train_data_path, test_data_path = obj.initiate_data_ingestion()
+
+    data_transformer = DataTransformation()
+    data_transformer.initiate_data_transformation(train_data_path, test_data_path)
