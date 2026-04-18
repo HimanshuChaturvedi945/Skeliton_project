@@ -1,13 +1,11 @@
 import os
 import sys
-import logging
-import src.logger
-import pandas as pd
+import src.logger as logging
+import pandas as pd 
 import src.exception as exception
 from src.utils import load_data
 from sklearn.model_selection import train_test_split
 from dataclasses import dataclass
-
 
 @dataclass
 class DataIngestionConfig:
