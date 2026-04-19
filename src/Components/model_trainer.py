@@ -21,12 +21,14 @@ from sklearn.ensemble import (
 )
 
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import r2_score
+from sklearn.metrics import accuracy_score
+from sklearn.model_selection import GridSearchCV
 from sklearn.tree import DecisionTreeClassifier
 
 from src.exception import CustomException
 from src.logger import logging
 from src.utils import save_object
+
 
 @dataclass
 class ModelTrainerConfig:
@@ -44,42 +46,88 @@ class ModelTrainer:
             X_test, y_test = test_array[:, :-1], test_array[:, -1]
 
             models = {
-                "Random Forest": RandomForestClassifier(),
-                "Decision Tree": DecisionTreeClassifier(),
-                "Gradient Boosting": GradientBoostingClassifier(),
-                "AdaBoost": AdaBoostClassifier(),
-                "Logistic Regression": LogisticRegression()
+                "Random Forest": RandomForestClassifier(random_state=42),
+                "Decision Tree": DecisionTreeClassifier(random_state=42),
+                "Gradient Boosting": GradientBoostingClassifier(random_state=42),
+                "AdaBoost": AdaBoostClassifier(random_state=42),
+                "Logistic Regression": LogisticRegression(solver='liblinear', random_state=42)
             }
-            
+
+            params = {
+                "Random Forest": {
+                    "n_estimators": [50, 100],
+                    "max_depth": [None, 10, 20],
+                    "min_samples_split": [2, 5]
+                },
+                "Decision Tree": {
+                    "max_depth": [None, 10, 20],
+                    "min_samples_split": [2, 5]
+                },
+                "Gradient Boosting": {
+                    "learning_rate": [0.01, 0.1],
+                    "n_estimators": [50, 100],
+                    "max_depth": [3, 5]
+                },
+                "AdaBoost": {
+                    "n_estimators": [50, 100],
+                    "learning_rate": [0.01, 0.1, 1.0]
+                },
+                "Logistic Regression": {
+                    "C": [0.01, 0.1, 1.0, 10.0]
+                }
+            }
+
             if XGBOOST_AVAILABLE:
-                models["XGBoost"] = XGBClassifier()
-                
+                models["XGBoost"] = XGBClassifier(eval_metric='logloss', random_state=42)
+                params["XGBoost"] = {
+                    "n_estimators": [50, 100],
+                    "learning_rate": [0.01, 0.1],
+                    "max_depth": [3, 5]
+                }
+
             if CATBOOST_AVAILABLE:
-                models["CatBoosting"] = CatBoostClassifier(verbose=False)
+                models["CatBoosting"] = CatBoostClassifier(verbose=False, random_state=42)
+                params["CatBoosting"] = {
+                    "iterations": [50, 100],
+                    "learning_rate": [0.01, 0.1],
+                    "depth": [4, 6]
+                }
 
             model_report: dict = {}
+            best_models: dict = {}
 
-            for i in range(len(models)):
-                model = list(models.values())[i]
-                model.fit(X_train, y_train)
+            for model_name, model in models.items():
+                logging.info(f"Starting hyperparameter tuning for {model_name}")
+                grid_search = GridSearchCV(
+                    estimator=model,
+                    param_grid=params.get(model_name, {}),
+                    cv=3,
+                    scoring='accuracy',
+                    n_jobs=-1,
+                    verbose=0
+                )
+                grid_search.fit(X_train, y_train)
 
-                y_test_pred = model.predict(X_test)
+                best_estimator = grid_search.best_estimator_
+                y_test_pred = best_estimator.predict(X_test)
+                test_model_score = accuracy_score(y_test, y_test_pred)
 
-                test_model_score = r2_score(y_test, y_test_pred)
+                model_report[model_name] = test_model_score
+                best_models[model_name] = best_estimator
 
-                model_report[list(models.keys())[i]] = test_model_score
+                logging.info(
+                    f"{model_name}: best params={grid_search.best_params_}, test accuracy={test_model_score:.4f}"
+                )
 
-            best_model_score = max(model_report.values())
-
-            best_model_name = [key for key in model_report if model_report[key] == best_model_score][0]
-
-            best_model = models[best_model_name]
+            best_model_name = max(model_report, key=model_report.get)
+            best_model_score = model_report[best_model_name]
+            best_model = best_models[best_model_name]
 
             print(f"\n{'='*50}")
             print("MODEL TRAINING RESULTS")
             print(f"{'='*50}")
             print(f"Best Model: {best_model_name}")
-            print(f"Best R² Score: {best_model_score:.4f}")
+            print(f"Best Accuracy Score: {best_model_score:.4f}")
             print(f"{'='*50}")
             print("All Model Scores:")
             for model_name, score in model_report.items():

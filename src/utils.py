@@ -1,4 +1,3 @@
-from copyreg import pickle
 import os
 import pandas as pd
 import sys
@@ -9,6 +8,7 @@ import dill
 def load_data():
     repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     candidate_paths = [
+        os.path.join(repo_root, 'artifacts', 'data.csv'),
         os.path.join(repo_root, 'component', 'archive (1)', 'data.csv'),
         os.path.join(repo_root, 'data', 'breast_cancer.csv'),
     ]
